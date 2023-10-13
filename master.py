@@ -6,7 +6,7 @@ from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
 from astropy.time import Time
 from datetime import datetime, timedelta
 import RPi.GPIO as g
-from constants import DEG_PER_STEP, RAD_TO_DEG_FACTOR, SLEEP_TIME, DEG_PER_SECOND, PRINT_FREQ, HA_HOME_ABS_POSITION, HOME_HA, DEC_HOME_ABS_POSITION, HOME_DEC, MENU_STRING
+from constants import DEG_PER_STEP, RAD_TO_DEG_FACTOR, SLEEP_TIME, DEG_PER_SECOND, PRINT_FREQ, HA_HOME_ABS_POSITION, HOME_HA, DEC_HOME_ABS_POSITION, HOME_DEC, MENU_STRING, LAT, LON, ALTITUDE
 from routines import convertToEquatorial, cleanup, initMotors, moveStepper
 import pytz
 
@@ -18,8 +18,8 @@ absoluteStepperState = [345_000, 345_000] # for RA and Dec
 
 # Stepper control initialization
 # pins of the 2 motors, 4 coils each
-motors = [[11, 15, 12, 13], 
-          [29, 33, 32, 31]]
+motors = [[15, 13, 12, 11], 
+          [32, 33, 31, 29]]
 
 # States a stepper motor can be in row --> state; column --> coil nr.
 states = [
@@ -32,11 +32,10 @@ states = [
 # pins of the photointerrupters used for homing. RA and Dec axis respectively
 limits = [38, 40]
 
-# Initializing the GPIO library and motor GPIO pins 
+# Initializing the GPIO library, motor GPIO pins and the optical limit sensors 
 g.setmode(g.BOARD)
 g.setwarnings(False)
 initMotors()
-
 g.setup(limits[0], g.IN)
 g.setup(limits[1], g.IN)
 
@@ -50,10 +49,11 @@ observer.elevation = 226
 sun = ephem.Sun(observer)
 
 # Astropy variables
-loc = EarthLocation(lat = 45.276055*u.deg, lon = 13.721878*u.deg, height = 226*u.m)
+loc = EarthLocation(lat = LAT*u.deg, lon = LON*u.deg, height = ALTITUDE*u.m)
 
 # Finding intial pointing
 # Use below if mounted
+# Pointing format: [Date and time, RA, Dec]
 # HomeCoords = convertToEquatorial(30, 180)
 # Pointing = [observer.date.datetime(), homeCoords[0], homeCoords[1]]
 
@@ -125,8 +125,7 @@ def trackSun():
                 lastPrint = timenow
                 
         except KeyboardInterrupt:
-            # turns off all motors, cleans up pin assignment and stops the whole program for now
-            # TODO: add options to continue the program, home, exit or do something else
+            # goes back to main menu
             cleanup(motors)
             g.cleanup()
             break

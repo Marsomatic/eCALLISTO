@@ -1,6 +1,11 @@
 from math import pi
 
-# a.k.a. the transmission ratio SM - output shaft
+# Location of the antenna and altitude above sea level
+LAT = 45.276055
+LON = 13.721878
+ALTITUDE = 226
+
+# Steps of the SM per 1 degree rotation on the output shaft a.k.a. the transmission ratio SM - output shaft
 STEPS_PER_DEG = 3450
 
 # Inverse of the above, used to update the pointing after every step of a SM
@@ -9,7 +14,7 @@ DEG_PER_STEP = 1/STEPS_PER_DEG
 # Used to convert angles from radians to degrees
 RAD_TO_DEG_FACTOR = 180 / pi
 
-# Time in seconds that the program sleeps for after every step of a SM (probably optional)
+# Time in seconds that the program sleeps for after every step of a SM (no sleep time causes the motor to skip steps)
 SLEEP_TIME = 0.001
 
 # Rotation rate of the earth in degrees/second
@@ -30,5 +35,5 @@ DEC_HOME_ABS_POSITION = 345_000
 # Declination when in home positon
 HOME_DEC = -45
 
-# menu string
-MENU_STRING = 'eCALLISTO Master v0.1\nt = track sun\nh = home\ngoto = GoTo\nm = manual control (RA and Dec)\n>>>'
+# Main menu output
+MENU_STRING = '===== eCALLISTO Master v1.0 =====\nt = track sun\nh = home\ngoto = GoTo\nm = manual control (RA and Dec)\n>>>'
