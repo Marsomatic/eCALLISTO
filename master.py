@@ -145,12 +145,8 @@ def home():
             
         # drives RA axis towards home position
         while not g.input(38):
-            timenow = datetime.now(tz)
             absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
             time.sleep(SLEEP_TIME)
-            if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                sys.stdout.write(f'{absoluteStepperState}\n')
-                lastPrint = timenow
 
         # sets RA in home position
         absoluteStepperState[0] = HA_HOME_ABS_POSITION
@@ -160,12 +156,8 @@ def home():
 
         # drives Dec axis towards home position
         while not g.input(40):
-            timenow = datetime.now(tz)
             absoluteStepperState = moveStepper(1, 1, -1, absoluteStepperState)
             time.sleep(SLEEP_TIME)
-            if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                print(f'{absoluteStepperState}')
-                lastPrint = timenow
 
         # sets Dec in home position
         absoluteStepperState[1] = DEC_HOME_ABS_POSITION
@@ -252,10 +244,7 @@ def manual(raSteps, decSteps):
         global lastPrint
         global absoluteStepperState
         
-        print('im in da funkshon')
-        
         if raSteps < 0:
-            print('i know what raSteps is')
             try:
                 print(f'brrrrrrrrrrrrrrrrrrrrr {absoluteStepperState}')
                 absoluteStepperState = moveStepper(0, raSteps, -1, absoluteStepperState)
