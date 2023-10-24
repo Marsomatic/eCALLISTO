@@ -40,7 +40,7 @@ g.setup(limits[0], g.IN)
 g.setup(limits[1], g.IN)
 
 # PyEphem variables
-pointing = []
+pointing = [0, 0]
 observer = ephem.Observer()
 observer.lon = '13.721878'
 observer.lat = '45.276055'
@@ -144,24 +144,27 @@ def home():
         global absoluteStepperState
             
         # drives RA axis towards home position
-        while not g.input(38):
+        print('homing RA...')
+        while g.input(38):
             absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
             time.sleep(SLEEP_TIME)
+        print('end stop reached')
 
         # sets RA in home position
         absoluteStepperState[0] = HA_HOME_ABS_POSITION
         lmst = Time(datetime.now(tz), format = 'datetime', scale='utc') # local mean sidereal time
         siderealTime = Angle(lmst.sidereal_time('apparent', loc)).degree
         pointing[1] = siderealTime - HOME_HA
+        print('RA homed!')
 
         # drives Dec axis towards home position
-        while not g.input(40):
-            absoluteStepperState = moveStepper(1, 1, -1, absoluteStepperState)
-            time.sleep(SLEEP_TIME)
+        # while not g.input(40):
+        #     absoluteStepperState = moveStepper(1, 1, -1, absoluteStepperState)
+        #     time.sleep(SLEEP_TIME)
 
-        # sets Dec in home position
-        absoluteStepperState[1] = DEC_HOME_ABS_POSITION
-        pointing[2] = HOME_DEC
+        # # sets Dec in home position
+        # absoluteStepperState[1] = DEC_HOME_ABS_POSITION
+        # pointing[2] = HOME_DEC
         
         cleanup(motors)
         
