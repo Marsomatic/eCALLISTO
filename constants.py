@@ -36,4 +36,4 @@ DEC_HOME_ABS_POSITION = 345_000
 HOME_DEC = -45
 
 # Main menu output
-MENU_STRING = '===== eCALLISTO Master v1.0 =====\nt = track sun\nh = home\ngoto = GoTo\nm = manual control (RA and Dec)\n>>>'
+MENU_STRING = '===== eCALLISTO Master v1.0 =====\nt = track sun\nh = home\ngoto = GoTo\nm = manual control (RA and Dec)\ncoords = print current coords\n>>> '
