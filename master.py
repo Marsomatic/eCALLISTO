@@ -40,12 +40,12 @@ g.setup(limits[0], g.IN)
 g.setup(limits[1], g.IN)
 
 # PyEphem variables
-pointing = [0, 0]
+pointing = [datetime.now(tz), 0, 0]
 observer = ephem.Observer()
-observer.lon = '13.721878'
-observer.lat = '45.276055'
+observer.lon = str(LON)
+observer.lat = str(LAT)
 observer.date = datetime.now(tz)
-observer.elevation = 226
+observer.elevation = ALTITUDE
 sun = ephem.Sun(observer)
 
 # Astropy variables
@@ -102,27 +102,19 @@ def trackSun():
             if float(sun.ha) * RAD_TO_DEG_FACTOR < lha:
                 moveStepper(0, 1, -1, absoluteStepperState)
                 pointing[1] += DEG_PER_STEP
-                #time.sleep(SLEEP_TIME)
                 
             elif float(sun.ha) * RAD_TO_DEG_FACTOR > lha:
                 moveStepper(0, 1, -1, absoluteStepperState)
                 pointing[1] -= DEG_PER_STEP
-                #time.sleep(SLEEP_TIME)
                 
             # Move dec stepper to track the sun
             if float(sun.dec) * RAD_TO_DEG_FACTOR > pointing[2]:
                 moveStepper(1, 1, 1, absoluteStepperState)
                 pointing[2] += DEG_PER_STEP / RAD_TO_DEG_FACTOR
-                #time.sleep(SLEEP_TIME)
                 
             elif float(sun.dec) * RAD_TO_DEG_FACTOR < pointing[2]:
                 moveStepper(1, 1, -1, absoluteStepperState)
                 pointing[2] -= DEG_PER_STEP / RAD_TO_DEG_FACTOR
-                #time.sleep(SLEEP_TIME)
-            
-            if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sun.ha) * RAD_TO_DEG_FACTOR} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
-                lastPrint = timenow
                 
         except KeyboardInterrupt:
             # goes back to main menu
@@ -152,19 +144,10 @@ def home():
 
         # sets RA in home position
         absoluteStepperState[0] = HA_HOME_ABS_POSITION
-        lmst = Time(datetime.now(tz), format = 'datetime', scale='utc') # local mean sidereal time
+        lmst = Time(datetime.utcnow(), format = 'datetime', scale='utc') # local mean sidereal time
         siderealTime = Angle(lmst.sidereal_time('apparent', loc)).degree
         pointing[1] = siderealTime - HOME_HA
         print('RA homed!')
-
-        # drives Dec axis towards home position
-        # while not g.input(40):
-        #     absoluteStepperState = moveStepper(1, 1, -1, absoluteStepperState)
-        #     time.sleep(SLEEP_TIME)
-
-        # # sets Dec in home position
-        # absoluteStepperState[1] = DEC_HOME_ABS_POSITION
-        # pointing[2] = HOME_DEC
         
         cleanup(motors)
         
@@ -172,7 +155,7 @@ def home():
         cleanup(motors)
         return
         
-def goto(targetRa, targetDec):
+def goto(targetRa):
     '''
     goes to a given RA-Dec
     '''
@@ -184,56 +167,46 @@ def goto(targetRa, targetDec):
         global lastPrint
         global absoluteStepperState
         
-        # Update PyEphem variables: time, sun coords
-        timenow = datetime.now(tz)
-        observer.date = timenow
-        sun = ephem.Sun(observer)
-        
-        # Update antenna pointing due to earth rotation
-        pointing[1] -= (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
-        pointing[0] = timenow
-        
-        # Compute local hour angle of the pointing
-        lmst = Time(datetime.now(tz), format = 'datetime', scale='utc')
-        lha = Angle(lmst.sidereal_time('apparent', loc)).degree - (pointing[1])
-        
-        # One if-elif block for RA and one for DEC
-        # One line (g.output...) is for one pin of the motor
-        # Format: g.output(motors[ra or dec][pin number], states[state row*][state column**])
-        # *There are 4 states a stepper motor can be in (the 4 rows)
-        # **The columns determine which of the 4 coils of the stepper motor are on and which ones are off
-        # Update the needed variables (absoluteStepperState, pointing) to keep track of where the antenna is pointed to 
-        
-        # Moves ra stepper to go-to/track the target
-        if targetRa < pointing[1]:
-            absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
-            pointing[1] += DEG_PER_STEP
-            #time.sleep(SLEEP_TIME)
+        while True:
+            # Update PyEphem variables: time, sun coords
+            timenow = datetime.now(tz)
+            observer.date = timenow
+            sun = ephem.Sun(observer)
             
-        elif targetRa > pointing[1]:
-            absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
-            pointing[1] -= DEG_PER_STEP
-            #time.sleep(SLEEP_TIME)
+            # Update antenna pointing due to earth rotation
+            pointing[1] -= (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
+            pointing[0] = timenow
             
-        # Move dec stepper to track the sun
-        if targetDec > pointing[2]:
-            absoluteStepperState = moveStepper(1, 1, 1, absoluteStepperState)
-            pointing[2] += DEG_PER_STEP / RAD_TO_DEG_FACTOR
-            #time.sleep(SLEEP_TIME)
+            # Compute local hour angle of the pointing
+            lmst = Time(datetime.now(tz), format = 'datetime', scale='utc')
+            lha = Angle(lmst.sidereal_time('apparent', loc)).degree - (pointing[1])
             
-        elif targetDec < pointing[2]:
-            absoluteStepperState = moveStepper(1, 1, -1, absoluteStepperState)
-            pointing[2] -= DEG_PER_STEP / RAD_TO_DEG_FACTOR
-            #time.sleep(SLEEP_TIME)
-        
-        if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-            print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sun.ha) * RAD_TO_DEG_FACTOR} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
-            lastPrint = timenow
+            # Moves ra stepper to go-to/track the target
+            if targetRa < pointing[1] - DEG_PER_STEP:
+                while targetRa < pointing[1]:
+                    absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                    pointing[0] = timenow
+                    pointing[1] -= DEG_PER_STEP
+                    timenow = datetime.now(tz)
+                    if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
+                        print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sun.ha) * RAD_TO_DEG_FACTOR} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
+                        lastPrint = timenow
+                
+            elif targetRa > pointing[1] + DEG_PER_STEP:
+                while targetRa > pointing[1]:
+                    absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                    pointing[0] = timenow
+                    pointing[1] += DEG_PER_STEP
+                    timenow = datetime.now(tz)
+                    if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
+                        print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sun.ha) * RAD_TO_DEG_FACTOR} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
+                        lastPrint = timenow
             
-        cleanup(motors)
+            cleanup(motors)
+            
     except KeyboardInterrupt:
         cleanup(motors)
-        return
+        return pointing[1]
     
 def manual(raSteps, decSteps):
     '''
@@ -279,35 +252,59 @@ def manual(raSteps, decSteps):
     except KeyboardInterrupt:
         cleanup(motors)
         return
+    
+def coords():
+    '''
+    prints out current pointing of the antenna along with the sun coordinates
+    '''
+    global pointing
+    global observer
+    global sun
+    global loc
+    global lastPrint
+    global absoluteStepperState
+    
+    # Update PyEphem variables: time, sun coords
+    timenow = datetime.now(tz)
+    observer.date = timenow
+    sun = ephem.Sun(observer)
+    
+    # Update antenna pointing due to earth rotation
+    pointing[1] -= (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
+    pointing[0] = timenow
+    
+    # Compute local hour angle of the pointing
+    lmst = Time(datetime.now(tz), format = 'datetime', scale='utc')
+    lha = Angle(lmst.sidereal_time('apparent', loc)).degree - (pointing[1])
+    
+    print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sun.ha) * RAD_TO_DEG_FACTOR} | {round(pointing[1], 9)}, {round(pointing[2], 9)} {round(lha, 9)} | {absoluteStepperState}')
 
 # Main loop
 while True:
     cleanup(motors)
     continuation = input(MENU_STRING)
     if continuation == 't':
+        observer.date = datetime.now(tz)
         sun.compute(observer)
         if sun.alt > 0:
             print('Tracking')
             trackSun()
         else:
-            print('the sun is below horizon')
+            print(f'the sun is below horizon: {sun.alt}')
     elif continuation == 'h':
         home()
     elif continuation == 'goto':
-        if len(pointing) != 0:
-            ra = float(input('target RA (in deg): '))
-            print(ra)
-            dec = float(input('target Dec (in deg): '))
-            print(dec)
-            goto(ra, dec)
-        else:
-            print('Cannot find target. Home antenna before proceeding')
-            continue
+        coords()
+        ra = float(input('target RA (in deg): '))
+        print(ra)
+        goto(ra)
     elif continuation == 'm':
         raSteps = int(input('RA steps: '))
         decSteps = int(input('DEC steps: '))
         manual(raSteps, decSteps)
         print('Done!')
+    elif continuation == 'coords':
+        coords()
     else:
         confirmation = input('Are you sure about that? [y/n]\n>>> ')
         if confirmation == 'y':
