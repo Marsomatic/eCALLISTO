@@ -93,3 +93,17 @@ def initMotors():
     g.setup(motors[1][1], g.OUT)
     g.setup(motors[1][2], g.OUT)
     g.setup(motors[1][3], g.OUT)
+    
+def optoCheck():
+    '''
+    prints opto-interrupter output
+    '''
+    g.setmode(g.BOARD)
+    g.setwarnings(False)
+    g.setup(38, g.IN)
+
+    try:
+        while True:
+            print(g.input(38))
+    except KeyboardInterrupt:
+        return    
