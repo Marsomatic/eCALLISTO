@@ -21,14 +21,6 @@ absoluteStepperState = [345_000, 345_000] # for RA and Dec
 motors = [[15, 13, 12, 11], 
           [32, 33, 31, 29]]
 
-# States a stepper motor can be in row --> state; column --> coil nr.
-states = [
-    [0, 0, 0, 1],
-    [0, 1, 0, 0],
-    [0, 0, 1, 0],
-    [1, 0, 0, 0]
-]
-
 # pins of the photointerrupters used for homing. RA and Dec axis respectively
 limits = [38, 40]
 
@@ -99,7 +91,7 @@ def trackSun():
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                     print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
                     lastPrint = timenow
-            elif sunHourAngle> lha + DEG_PER_STEP:
+            elif sunHourAngle > lha + DEG_PER_STEP:
                 absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
                 pointing[1] += DEG_PER_STEP
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
@@ -134,7 +126,7 @@ def home():
         
         print('homing RA...')
         while g.input(38):    
-            absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+            absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
             time.sleep(SLEEP_TIME)
         print('end stop reached')
 
@@ -146,6 +138,7 @@ def home():
         print('RA homed!')
         
         cleanup(motors)
+        coords()
         
     except KeyboardInterrupt:
         cleanup(motors)
