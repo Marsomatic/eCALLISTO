@@ -5,8 +5,11 @@ LAT = 45.276055
 LON = 13.721878
 ALTITUDE = 226
 
-# Steps of the SM per 1 degree rotation on the output shaft a.k.a. the transmission ratio SM - output shaft
-STEPS_PER_DEG = 3450
+# Transmission ratio stepsperrev/200
+TRANSMISSION_RATIO = 3300
+
+# Steps of the SM per 1 degree rotation on the output shaft
+STEPS_PER_DEG = 1833
 
 # Inverse of the above, used to update the pointing after every step of a SM
 DEG_PER_STEP = 1/STEPS_PER_DEG
