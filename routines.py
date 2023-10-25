@@ -9,10 +9,10 @@ import time
 
 # States a stepper motor can be in row --> state; column --> coil nr.
 states = [
-    [0, 0, 0, 1],
-    [0, 1, 0, 0],
+    [1, 0, 0, 0],
     [0, 0, 1, 0],
-    [1, 0, 0, 0]
+    [0, 1, 0, 0],
+    [0, 0, 0, 1]
 ]
 
 # Stepper control initialization
