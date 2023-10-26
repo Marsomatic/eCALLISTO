@@ -6,15 +6,18 @@ from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
 from astropy.time import Time
 from datetime import datetime, timedelta
 import RPi.GPIO as g
-from constants import DEG_PER_STEP, RAD_TO_DEG_FACTOR, SLEEP_TIME, DEG_PER_SECOND, PRINT_FREQ, HA_HOME_ABS_POSITION, HOME_HA, DEC_HOME_ABS_POSITION, HOME_DEC, MENU_STRING, LAT, LON, ALTITUDE
-from routines import convertToEquatorial, cleanup, initMotors, moveStepper
+from constants import DEG_PER_STEP, RAD_TO_DEG_FACTOR, SLEEP_TIME, DEG_PER_SECOND, PRINT_FREQ, HA_HOME_ABS_POSITION, HOME_HA, MENU_STRING, LAT, LON, ALTITUDE
+from routines import cleanup, initMotors, moveStepper
 import pytz
 
 # local timezone
 tz = pytz.timezone('Europe/Berlin')
+gmt = pytz.timezone('Etc/GMT')
 
-# This is initialized as in the middle of the stepper range (1 revolution is 690 000 steps), needs to be updated when homed
-absoluteStepperState = [345_000, 345_000] # for RA and Dec
+# This is initialized as in the middle of the stepper range (1 revolution is 660 000 steps), needs to be updated when homed
+absoluteStepperState = [330_000, 330_000] # for RA and Dec
+# Format: time; RA; DEC
+pointing = [datetime.now(tz), 0, 0]
 
 # Stepper control initialization
 # pins of the 2 motors, 4 coils each
@@ -31,8 +34,18 @@ initMotors()
 g.setup(limits[0], g.IN)
 g.setup(limits[1], g.IN)
 
+# Open file
+fRead = open('lastPos.txt', 'r')
+line = fRead.readline()
+filelist = line.split()
+
+# Pointing format: [Date and time, RA, Dec]
+if len(line) != 0:
+    pointing = [datetime.now(tz), float(filelist[0]), float(filelist[1])]
+    absoluteStepperState = [int(filelist[2]), 330000]
+fRead.close()
+
 # PyEphem variables
-pointing = [datetime.now(tz), 0, 0]
 observer = ephem.Observer()
 observer.lon = str(LON)
 observer.lat = str(LAT)
@@ -42,15 +55,6 @@ sun = ephem.Sun(observer)
 
 # Astropy variables
 loc = EarthLocation(lat = LAT*u.deg, lon = LON*u.deg, height = ALTITUDE*u.m)
-
-# Finding intial pointing
-# Use below if mounted
-# Pointing format: [Date and time, RA, Dec]
-# HomeCoords = convertToEquatorial(30, 180)
-# Pointing = [observer.date.datetime(), homeCoords[0], homeCoords[1]]
-
-# Pointing [time, right ascension, declination] (in degrees)
-# pointing = [observer.date.datetime(), float(sun.ra) * RAD_TO_DEG_FACTOR, float(sun.dec) * RAD_TO_DEG_FACTOR]
 
 print('           UTC             |   Sun RA      Sun Dec     Sun HA    |    antenna RA     antenna Dec     antenna HA    |     absoluteStepperState     ')
 
@@ -68,32 +72,37 @@ def trackSun():
     global lastPrint
     global absoluteStepperState
     
+    sun.compute(observer)
+    goto(sun.ra * RAD_TO_DEG_FACTOR, True)
+    
     while True:
         try:
+            
             # Update PyEphem variables: time, sun coords
             timenow = datetime.now(tz)
             observer.date = timenow
             sun.compute(observer)
             
             # Update antenna pointing due to earth rotation
-            pointing[1] -= (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
+            pointing[1] += (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
             pointing[0] = timenow
             
             # Compute local hour angle of the pointing
             lmst = Time(datetime.now(tz), format = 'datetime', scale='utc')
-            lha = (Angle(lmst.sidereal_time('apparent', loc)).degree + (pointing[1]))%360
-            sunHourAngle = (Angle(lmst.sidereal_time('apparent', loc)).degree + (float(sun.ra) * RAD_TO_DEG_FACTOR))%360
+            siderealTime = observer.sidereal_time()
+            lha = (siderealTime * RAD_TO_DEG_FACTOR - (pointing[1]))%360
+            sunHourAngle = (Angle(lmst.sidereal_time('apparent', loc)).degree - (float(sun.ra) * RAD_TO_DEG_FACTOR))%360
             
             # Moves ra stepper to track the sun
             if sunHourAngle < lha - DEG_PER_STEP:
-                absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
-                pointing[1] -= DEG_PER_STEP
+                absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                pointing[1] += DEG_PER_STEP
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                     print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
                     lastPrint = timenow
             elif sunHourAngle > lha + DEG_PER_STEP:
-                absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
-                pointing[1] += DEG_PER_STEP
+                absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                pointing[1] -= DEG_PER_STEP
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                     print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
                     lastPrint = timenow
@@ -123,18 +132,20 @@ def home():
         global absoluteStepperState
         
         # drives RA axis towards home position
-        
         print('homing RA...')
         while g.input(38):    
             absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
             time.sleep(SLEEP_TIME)
         print('end stop reached')
+        
+        timenow = datetime.now(tz)
+        sun.compute(observer)
 
         # sets RA in home position
         absoluteStepperState[0] = HA_HOME_ABS_POSITION
-        lmst = Time(datetime.utcnow(), format = 'datetime', scale='utc') # local mean sidereal time
-        siderealTime = Angle(lmst.sidereal_time('apparent', loc)).degree
-        pointing[1] = (siderealTime - HOME_HA)%360
+        siderealTime = observer.sidereal_time()
+        pointing[1] = (siderealTime * RAD_TO_DEG_FACTOR - HOME_HA)%360
+        pointing[0] = timenow
         print('RA homed!')
         
         cleanup(motors)
@@ -144,7 +155,7 @@ def home():
         cleanup(motors)
         return
         
-def goto(targetRa):
+def goto(targetRa, tracking):
     '''
     goes to a given RA-Dec
     '''
@@ -163,13 +174,14 @@ def goto(targetRa):
             sun.compute(observer)
 
             # Update antenna pointing due to earth rotation
-            pointing[1] -= (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
+            pointing[1] += (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
             pointing[0] = timenow
 
             # Compute local hour angle of the pointing
             lmst = Time(datetime.now(tz), format = 'datetime', scale='utc')
-            lha = (Angle(lmst.sidereal_time('apparent', loc)).degree + (pointing[1]))%360
-            sunHourAngle = (Angle(lmst.sidereal_time('apparent', loc)).degree + (sun.ra))%360
+            siderealTime = observer.sidereal_time()
+            lha = (siderealTime * RAD_TO_DEG_FACTOR - (pointing[1]))%360
+            sunHourAngle = (Angle(lmst.sidereal_time('apparent', loc)).degree - (float(sun.ra) * RAD_TO_DEG_FACTOR))%360
 
             # Moves ra stepper to go-to/track the target
             if targetRa < pointing[1] - DEG_PER_STEP:
@@ -178,8 +190,11 @@ def goto(targetRa):
                     pointing[0] = timenow
                     pointing[1] -= DEG_PER_STEP
                     timenow = datetime.now(tz)
+                    if tracking:
+                        if pointing[1] - targetRa < 0.1:
+                            return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                        print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sunHourAngle)} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
+                        print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
                         lastPrint = timenow
 
             elif targetRa > pointing[1] + DEG_PER_STEP:
@@ -188,8 +203,11 @@ def goto(targetRa):
                     pointing[0] = timenow
                     pointing[1] += DEG_PER_STEP
                     timenow = datetime.now(tz)
+                    if tracking:
+                        if targetRa - pointing[1] < 0.1:
+                            return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                        print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sunHourAngle)} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
+                        print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)}, {round(lha, 9)} | {absoluteStepperState}')
                         lastPrint = timenow
 
             cleanup(motors)
@@ -260,45 +278,50 @@ def coords():
     sun.compute(observer)
 
     # Update antenna pointing due to earth rotation
-    pointing[1] -= (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
+    pointing[1] += (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
     pointing[0] = timenow
 
     # Compute local hour angle of the pointing
-    lmst = Time(timenow, format = 'datetime', scale='utc')
-    lha = (Angle(lmst.sidereal_time('apparent', loc)).degree + (pointing[1]))%360
-    sunHourAngle = (Angle(lmst.sidereal_time('apparent', loc)).degree + (sun.ra))%360
+    siderealTime = observer.sidereal_time()
+    lha = (siderealTime * RAD_TO_DEG_FACTOR - (pointing[1]))%360
+    sunHourAngle = (siderealTime - (float(sun.ra) * RAD_TO_DEG_FACTOR))%360
 
-    print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {float(sunHourAngle) * RAD_TO_DEG_FACTOR} | {round(pointing[1], 9)}, {round(pointing[2], 9)} {round(lha, 9)} | {absoluteStepperState}')
+    print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)} {round(lha, 9)} | {absoluteStepperState}')
 
 # Main loop
-while True:
-    cleanup(motors)
-    continuation = input(MENU_STRING)
-    if continuation == 't':
-        observer.date = datetime.now(tz)
-        sun.compute(observer)
-        if sun.alt > 0:
-            print('Starting tracking')
-            trackSun()
+try:
+    while True:
+        cleanup(motors)
+        continuation = input(MENU_STRING)
+        if continuation == 't':
+            observer.date = datetime.now(tz)
+            sun.compute(observer)
+            if sun.alt > 0:
+                print('Starting tracking')
+                trackSun()
+            else:
+                print(f'the sun is below horizon: {sun.alt}')
+        elif continuation == 'h':
+            home()
+        elif continuation == 'goto':
+            coords()
+            ra = float(input('target RA (in deg): '))
+            print(ra)
+            goto(ra, False)
+        elif continuation == 'm':
+            raSteps = int(input('RA steps: '))
+            decSteps = int(input('DEC steps: '))
+            manual(raSteps, decSteps)
+            print('Done!')
+        elif continuation == 'coords':
+            coords()
         else:
-            print(f'the sun is below horizon: {sun.alt}')
-    elif continuation == 'h':
-        home()
-    elif continuation == 'goto':
-        coords()
-        ra = float(input('target RA (in deg): '))
-        print(ra)
-        goto(ra)
-    elif continuation == 'm':
-        raSteps = int(input('RA steps: '))
-        decSteps = int(input('DEC steps: '))
-        manual(raSteps, decSteps)
-        print('Done!')
-    elif continuation == 'coords':
-        coords()
-    else:
-        confirmation = input('Are you sure about that? [y/n]\n>>> ')
-        if confirmation == 'y':
-            break
-        else:
-            continue
+            confirmation = input('Are you sure about that? [y/n]\n>>> ')
+            if confirmation == 'y':
+                break
+            else:
+                continue
+except KeyboardInterrupt:
+    fWrite = open('lastPos.txt', 'w')
+    fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
+    fWrite.close()

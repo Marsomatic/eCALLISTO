@@ -20,7 +20,7 @@ states = [
 motors = [[11, 15, 12, 13], 
           [29, 33, 32, 31]]
 
-absoluteStepperState = [345000, 345000]
+absoluteStepperState = [330000, 330000]
 
 def convertToEquatorial(alt, az):
     '''
@@ -72,6 +72,7 @@ def moveStepper(motor, steps, dir, absoluteStepperState):
     dir: -1 = east/north, 1 = west/south
     absoluteStepperState: 
     '''
+    
     for i in range(abs(steps)):
         g.output(motors[motor][3], states[absoluteStepperState[motor]%4][0])
         g.output(motors[motor][2], states[absoluteStepperState[motor]%4][1])

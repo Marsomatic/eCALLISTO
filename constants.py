@@ -5,11 +5,14 @@ LAT = 45.276055
 LON = 13.721878
 ALTITUDE = 226
 
+# Steps in a rotation
+STEPS_PER_ROT = 660000
+
 # Transmission ratio stepsperrev/200
-TRANSMISSION_RATIO = 3300
+TRANSMISSION_RATIO = STEPS_PER_ROT / 200
 
 # Steps of the SM per 1 degree rotation on the output shaft
-STEPS_PER_DEG = 1833
+STEPS_PER_DEG = int(STEPS_PER_ROT / 360)
 
 # Inverse of the above, used to update the pointing after every step of a SM
 DEG_PER_STEP = 1/STEPS_PER_DEG
@@ -27,13 +30,13 @@ DEG_PER_SECOND = 1/240
 PRINT_FREQ = 1
 
 # Absolute RA SM position when in home position
-HA_HOME_ABS_POSITION = 172_500
+HA_HOME_ABS_POSITION = int(STEPS_PER_ROT * (1/4))
 
 # Hour angle when in home position
-HOME_HA = -90
+HOME_HA = 270 + 2.73
 
 # Absolute Dec SM position when in home position
-DEC_HOME_ABS_POSITION = 345_000
+DEC_HOME_ABS_POSITION = STEPS_PER_ROT / 2
 
 # Declination when in home positon
 HOME_DEC = -45
