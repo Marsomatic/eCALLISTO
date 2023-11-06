@@ -12,7 +12,6 @@ import pytz
 
 # local timezone
 tz = pytz.timezone('Europe/Berlin')
-gmt = pytz.timezone('Etc/GMT')
 
 # This is initialized as in the middle of the stepper range (1 revolution is 660 000 steps), needs to be updated when homed
 absoluteStepperState = [330_000, 330_000] # for RA and Dec
@@ -345,13 +344,7 @@ try:
         cleanup(motors)
         continuation = input(MENU_STRING)
         if continuation == 't':
-            observer.date = datetime.now(tz)
-            sun.compute(observer)
-            if sun.alt > 0:
-                print('Starting tracking')
-                trackSun()
-            else:
-                print(f'the sun is below horizon: {sun.alt}')
+            trackSun()
         elif continuation == 'h':
             home()
         elif continuation == 'goto':
