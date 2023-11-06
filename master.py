@@ -72,6 +72,7 @@ def trackSun():
     global lastPrint
     global absoluteStepperState
     
+    waitForSunrise()
     observer.date = datetime.now(tz)
     sun.compute(observer)
     goto(sun.ra * RAD_TO_DEG_FACTOR, True)
@@ -336,7 +337,6 @@ def waitForSunrise():
         if sun.alt > 0:
             break
     return
-    
 
 # ===== Main loop manual control =====
 try:
@@ -381,7 +381,6 @@ except KeyboardInterrupt:
 #     while True:
 #         cleanup(motors)
 #         home()
-#         waitForSunrise()
 #         trackSun()
         
 # except KeyboardInterrupt:
