@@ -331,6 +331,7 @@ def printAllCoords(sunHourAngle, lha):
     print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)} {round(lha, 9)} | {absoluteStepperState}')
     
 def waitForSunrise():
+    print('waiting for sunrise')
     while True:
         observer.date = datetime.now(tz)
         sun.compute(observer)
