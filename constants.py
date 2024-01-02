@@ -27,7 +27,7 @@ SLEEP_TIME = 0.001
 DEG_PER_SECOND = 1/240
 
 # Frequency (in seconds) of updating the position in console
-PRINT_FREQ = 1
+PRINT_FREQ = 5
 
 # Absolute RA SM position when in home position
 HA_HOME_ABS_POSITION = int(STEPS_PER_ROT * (1/4))
