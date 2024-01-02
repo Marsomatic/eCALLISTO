@@ -1,10 +1,9 @@
 import ephem
 import time
-import sys
 import astropy.units as u
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
+from astropy.coordinates import EarthLocation, Angle
 from astropy.time import Time
-from datetime import datetime, timedelta
+from datetime import datetime
 import RPi.GPIO as g
 from constants import DEG_PER_STEP, RAD_TO_DEG_FACTOR, SLEEP_TIME, DEG_PER_SECOND, PRINT_FREQ, HA_HOME_ABS_POSITION, HOME_HA, MENU_STRING, LAT, LON, ALTITUDE
 from routines import cleanup, initMotors, moveStepper
@@ -59,10 +58,9 @@ print('           UTC             |   Sun RA      Sun Dec     Sun HA    |    ant
 
 lastPrint = datetime.now(tz)
 
-# Tracking the sun
 def trackSun():
     '''
-    tracks the sun assuming the antenna has been homed
+    tracks the sun
     '''
     global pointing
     global observer
@@ -71,12 +69,12 @@ def trackSun():
     global lastPrint
     global absoluteStepperState
     
+    home()
 
     observer.date = datetime.now(tz)
     sun.compute(observer)
     
-    if sun.alt < 0:
-        waitForSunrise()
+    waitForSunrise()
     print(sun.ra * RAD_TO_DEG_FACTOR, pointing[1])
     goto(sun.ra * RAD_TO_DEG_FACTOR, True)
     print('tracking')
@@ -132,7 +130,7 @@ def trackSun():
                     lastPrint = timenow
             
             if sun.alt < 0:
-                return
+                trackSun()
             
             cleanup(motors)
             time.sleep(1)
@@ -142,7 +140,6 @@ def trackSun():
         cleanup(motors)
         return
             
-# Homing
 def home():
     '''
     drives the antenna to the home position
@@ -152,7 +149,6 @@ def home():
         global observer
         global sun
         global loc
-        global lastPrint
         global absoluteStepperState
         
         # drives RA axis towards home position
@@ -351,14 +347,14 @@ def printAllCoords(sunHourAngle, lha):
     print(f'{pointing[0]} | {float(sun.ra) * RAD_TO_DEG_FACTOR}, {float(sun.dec) * RAD_TO_DEG_FACTOR}, {sunHourAngle} | {round(pointing[1], 9)}, {round(pointing[2], 9)} {round(lha, 9)} | {absoluteStepperState}')
     
 def waitForSunrise():
-    print('waiting for sunrise')
+    print('Waiting for sunrise')
     while True:
         observer.date = datetime.now(tz)
         sun.compute(observer)
         if sun.alt > 0:
-            print('he has risen')
+            print('Good morning world')
             break
-        time.sleep(10)
+        time.sleep(30)
     return
 
 # ===== Main loop manual control =====
