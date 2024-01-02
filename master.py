@@ -71,10 +71,15 @@ def trackSun():
     global lastPrint
     global absoluteStepperState
     
-    waitForSunrise()
+
     observer.date = datetime.now(tz)
     sun.compute(observer)
+    
+    if sun.alt < 0:
+        waitForSunrise()
+    print(sun.ra * RAD_TO_DEG_FACTOR, pointing[1])
     goto(sun.ra * RAD_TO_DEG_FACTOR, True)
+    print('tracking')
     
     
     try:
@@ -93,6 +98,8 @@ def trackSun():
             siderealTime = observer.sidereal_time()
             lha = (siderealTime * RAD_TO_DEG_FACTOR - (pointing[1]))%360
             sunHourAngle = (Angle(lmst.sidereal_time('apparent', loc)).degree - (float(sun.ra) * RAD_TO_DEG_FACTOR))%360
+            
+            printAllCoords(sunHourAngle, lha)
             
             # Moves ra stepper to track the sun
             if sunHourAngle < lha - DEG_PER_STEP and lha - sunHourAngle < 180:
@@ -183,13 +190,14 @@ def goto(targetRa, tracking):
         global loc
         global lastPrint
         global absoluteStepperState
-
+        
         while True:
+            
             # Update PyEphem variables: time, sun coords
             timenow = datetime.now(tz)
             observer.date = timenow
             sun.compute(observer)
-
+            
             # Update antenna pointing due to earth rotation
             pointing[1] += (timenow - pointing[0]).total_seconds() * DEG_PER_SECOND
             pointing[0] = timenow
@@ -206,9 +214,11 @@ def goto(targetRa, tracking):
                     absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
                     pointing[0] = timenow
                     pointing[1] -= DEG_PER_STEP
+                    if pointing[1] < 0:
+                        pointing[1] = 360 + pointing[1]
                     timenow = datetime.now(tz)
                     if tracking:
-                        if pointing[1] - targetRa < 0.1:
+                        if abs(pointing[1] - targetRa) < 0.1:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
@@ -219,35 +229,41 @@ def goto(targetRa, tracking):
                     absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
                     pointing[0] = timenow
                     pointing[1] += DEG_PER_STEP
+                    if pointing[1] > 360:
+                        pointing[1] = pointing[1] - 360
                     timenow = datetime.now(tz)
                     if tracking:
-                        if targetRa - pointing[1] < 0.1:
+                        if abs(targetRa - pointing[1]) < 0.1:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
                         lastPrint = timenow
             
             elif targetRa < pointing[1] - DEG_PER_STEP and pointing[1] - targetRa > 180:
-                while targetRa > pointing[1]:
+                while targetRa < pointing[1]:
                     absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
                     pointing[0] = timenow
                     pointing[1] += DEG_PER_STEP
+                    if pointing[1] > 360:
+                        pointing[1] = pointing[1] - 360
                     timenow = datetime.now(tz)
                     if tracking:
-                        if targetRa - pointing[1] < 0.1:
+                        if abs(targetRa - pointing[1]) < 0.1:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
                         lastPrint = timenow
                         
-            elif targetRa > pointing[1] + DEG_PER_STEP and targetRa - pointing[1] < 180:
-                while targetRa < pointing[1]:
+            elif targetRa > pointing[1] + DEG_PER_STEP and targetRa - pointing[1] > 180:
+                while targetRa > pointing[1]:
                     absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
                     pointing[0] = timenow
                     pointing[1] -= DEG_PER_STEP
+                    if pointing[1] < 0:
+                        pointing[1] = 360 + pointing[1]
                     timenow = datetime.now(tz)
                     if tracking:
-                        if pointing[1] - targetRa < 0.1:
+                        if abs(pointing[1] - targetRa) < 0.1:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
@@ -340,7 +356,9 @@ def waitForSunrise():
         observer.date = datetime.now(tz)
         sun.compute(observer)
         if sun.alt > 0:
+            print('he has risen')
             break
+        time.sleep(10)
     return
 
 # ===== Main loop manual control =====
