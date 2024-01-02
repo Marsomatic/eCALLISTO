@@ -1,8 +1,7 @@
 import astropy.units as u
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
-from astropy.coordinates import angles as kutevi
 from astropy.time import Time
-from datetime import datetime, timedelta
+from datetime import datetime
 import RPi.GPIO as g
 from constants import SLEEP_TIME
 import time
@@ -19,6 +18,10 @@ states = [
 # pins of the 2 motors, 4 coils each
 motors = [[11, 15, 12, 13], 
           [29, 33, 32, 31]]
+# IMPORTANT:
+# When PCB is printed the motor assignment is as follows:
+# motors = [[12, 15, 11, 13], 
+#           [31, 33, 32, 29]]
 
 absoluteStepperState = [330000, 330000]
 
