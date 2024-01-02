@@ -96,26 +96,30 @@ def trackSun():
             
             # Moves ra stepper to track the sun
             if sunHourAngle < lha - DEG_PER_STEP and lha - sunHourAngle < 180:
-                absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
-                pointing[1] += DEG_PER_STEP
+                # absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                # pointing[1] += DEG_PER_STEP
+                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                     printAllCoords(sunHourAngle, lha)
                     lastPrint = timenow
             elif sunHourAngle > lha + DEG_PER_STEP and sunHourAngle - lha < 180:
-                absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
-                pointing[1] -= DEG_PER_STEP
+                # absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                # pointing[1] -= DEG_PER_STEP
+                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                     printAllCoords(sunHourAngle, lha)
                     lastPrint = timenow
             elif sunHourAngle < lha - DEG_PER_STEP and lha - sunHourAngle > 180:
-                absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
-                pointing[1] -= DEG_PER_STEP
+                # absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                # pointing[1] -= DEG_PER_STEP
+                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                     printAllCoords(sunHourAngle, lha)
                     lastPrint = timenow
             elif sunHourAngle > lha + DEG_PER_STEP and sunHourAngle - lha > 180:
-                absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
-                pointing[1] += DEG_PER_STEP
+                # absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                # pointing[1] += DEG_PER_STEP
+                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
                 if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                     printAllCoords(sunHourAngle, lha)
                     lastPrint = timenow
@@ -124,6 +128,7 @@ def trackSun():
                 return
             
             cleanup(motors)
+            time.sleep(1)
             
     except KeyboardInterrupt:
         # goes back to main menu
