@@ -5,7 +5,7 @@ from astropy.coordinates import EarthLocation, Angle
 from astropy.time import Time
 from datetime import datetime
 import RPi.GPIO as g
-from constants import DEG_PER_STEP, RAD_TO_DEG_FACTOR, SLEEP_TIME, DEG_PER_SECOND, PRINT_FREQ, HA_HOME_ABS_POSITION, HOME_HA, MENU_STRING, LAT, LON, ALTITUDE
+from constants import *
 from routines import cleanup, initMotors, moveStepper
 import pytz
 
@@ -60,7 +60,7 @@ lastPrint = datetime.now(tz)
 
 def trackSun():
     '''
-    tracks the sun
+    tracks the sun assuming the antenna has been homed
     '''
     global pointing
     global observer
@@ -68,15 +68,14 @@ def trackSun():
     global loc
     global lastPrint
     global absoluteStepperState
-    
-    home()
 
     observer.date = datetime.now(tz)
     sun.compute(observer)
     
-    waitForSunrise()
-    print(sun.ra * RAD_TO_DEG_FACTOR, pointing[1])
-    goto(sun.ra * RAD_TO_DEG_FACTOR, True)
+    waitForSchedule()
+    print("Sun: ", sun.ra * RAD_TO_DEG_FACTOR, "Antenna: ", pointing[1])
+    if sun.alt > 0:
+        goto(sun.ra * RAD_TO_DEG_FACTOR, True)
     print('tracking')
     
     
@@ -97,43 +96,43 @@ def trackSun():
             lha = (siderealTime * RAD_TO_DEG_FACTOR - (pointing[1]))%360
             sunHourAngle = (Angle(lmst.sidereal_time('apparent', loc)).degree - (float(sun.ra) * RAD_TO_DEG_FACTOR))%360
             
-            printAllCoords(sunHourAngle, lha)
-            
-            # Moves ra stepper to track the sun
-            if sunHourAngle < lha - DEG_PER_STEP and lha - sunHourAngle < 180:
-                # absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
-                # pointing[1] += DEG_PER_STEP
-                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
-                if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                    printAllCoords(sunHourAngle, lha)
-                    lastPrint = timenow
-            elif sunHourAngle > lha + DEG_PER_STEP and sunHourAngle - lha < 180:
-                # absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
-                # pointing[1] -= DEG_PER_STEP
-                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
-                if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                    printAllCoords(sunHourAngle, lha)
-                    lastPrint = timenow
-            elif sunHourAngle < lha - DEG_PER_STEP and lha - sunHourAngle > 180:
-                # absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
-                # pointing[1] -= DEG_PER_STEP
-                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
-                if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                    printAllCoords(sunHourAngle, lha)
-                    lastPrint = timenow
-            elif sunHourAngle > lha + DEG_PER_STEP and sunHourAngle - lha > 180:
-                # absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
-                # pointing[1] += DEG_PER_STEP
-                goto(sun.ra * RAD_TO_DEG_FACTOR, True)
-                if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
-                    printAllCoords(sunHourAngle, lha)
-                    lastPrint = timenow
-            
-            if sun.alt < 0:
-                trackSun()
-            
+            if sun.alt > 0:
+                # Moves ra stepper to track the sun
+                if sunHourAngle < lha - DEG_PER_STEP and lha - sunHourAngle < 180:
+                    # absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                    # pointing[1] += DEG_PER_STEP
+                    goto(sun.ra * RAD_TO_DEG_FACTOR, True)
+                    if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
+                        printAllCoords(sunHourAngle, lha)
+                        lastPrint = timenow
+                elif sunHourAngle > lha + DEG_PER_STEP and sunHourAngle - lha < 180:
+                    # absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                    # pointing[1] -= DEG_PER_STEP
+                    goto(sun.ra * RAD_TO_DEG_FACTOR, True)
+                    if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
+                        printAllCoords(sunHourAngle, lha)
+                        lastPrint = timenow
+                elif sunHourAngle < lha - DEG_PER_STEP and lha - sunHourAngle > 180:
+                    # absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                    # pointing[1] -= DEG_PER_STEP
+                    goto(sun.ra * RAD_TO_DEG_FACTOR, True)
+                    if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
+                        printAllCoords(sunHourAngle, lha)
+                        lastPrint = timenow
+                elif sunHourAngle > lha + DEG_PER_STEP and sunHourAngle - lha > 180:
+                    # absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                    # pointing[1] += DEG_PER_STEP
+                    goto(sun.ra * RAD_TO_DEG_FACTOR, True)
+                    if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
+                        printAllCoords(sunHourAngle, lha)
+                        lastPrint = timenow
             cleanup(motors)
+            if timenow.hour >= STOP_TIME_HOUR and timenow.minute >= STOP_TIME_MINUTE:
+                    home()
+                    trackSun()
+            
             time.sleep(1)
+            
             
     except KeyboardInterrupt:
         # goes back to main menu
@@ -214,7 +213,7 @@ def goto(targetRa, tracking):
                         pointing[1] = 360 + pointing[1]
                     timenow = datetime.now(tz)
                     if tracking:
-                        if abs(pointing[1] - targetRa) < 0.1:
+                        if abs(pointing[1] - targetRa) < 0.01:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
@@ -229,7 +228,7 @@ def goto(targetRa, tracking):
                         pointing[1] = pointing[1] - 360
                     timenow = datetime.now(tz)
                     if tracking:
-                        if abs(targetRa - pointing[1]) < 0.1:
+                        if abs(targetRa - pointing[1]) < 0.01:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
@@ -244,7 +243,7 @@ def goto(targetRa, tracking):
                         pointing[1] = pointing[1] - 360
                     timenow = datetime.now(tz)
                     if tracking:
-                        if abs(targetRa - pointing[1]) < 0.1:
+                        if abs(targetRa - pointing[1]) < 0.01:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
@@ -259,7 +258,7 @@ def goto(targetRa, tracking):
                         pointing[1] = 360 + pointing[1]
                     timenow = datetime.now(tz)
                     if tracking:
-                        if abs(pointing[1] - targetRa) < 0.1:
+                        if abs(pointing[1] - targetRa) < 0.01:
                             return
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
@@ -270,6 +269,11 @@ def goto(targetRa, tracking):
     except KeyboardInterrupt:
         cleanup(motors)
         return pointing[1]
+
+def gotoZenith():
+    home()
+    zenithSteps = STEPS_PER_ROT / 4
+    moveStepper(0, zenithSteps, 1, absoluteStepperState)
 
 def manual(raSteps, decSteps):
     '''
@@ -357,46 +361,60 @@ def waitForSunrise():
         time.sleep(30)
     return
 
-# ===== Main loop manual control =====
-try:
+def waitForSchedule():
+    print('Waiting for next scheduled event')
     while True:
-        cleanup(motors)
-        continuation = input(MENU_STRING)
-        if continuation == 't':
-            trackSun()
-        elif continuation == 'h':
-            home()
-        elif continuation == 'goto':
-            coords()
-            ra = float(input('target RA (in deg): '))
-            print(ra)
-            goto(ra, False)
-        elif continuation == 'm':
-            raSteps = int(input('RA steps: '))
-            decSteps = int(input('DEC steps: '))
-            manual(raSteps, decSteps)
-            print('Done!')
-        elif continuation == 'coords':
-            coords()
-        else:
-            confirmation = input('Are you sure about that? [y/n]\n>>> ')
-            if confirmation == 'y':
-                break
-            else:
-                continue
-except KeyboardInterrupt:
-    fWrite = open('lastPos.txt', 'w')
-    fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
-    fWrite.close()
-
-# ===== Main loop auto control =====
+        timenow = datetime.now(tz)
+        observer.date = timenow
+        sun.compute(observer)
+        if timenow.hour >= START_TIME_HOUR - 1 and sun.alt > 0:
+            print('good morning world')
+            break
+        if timenow.hour >= OVS_TIMEH - 1 and timenow.hour < OVS_TIMEH + 1:
+            gotoZenith()
+            if timenow.hour > OVS_TIMEH:
+                home()
+        time.sleep(30)
+    return        
+# ===== Main loop manual control =====
 # try:
 #     while True:
 #         cleanup(motors)
-#         home()
-#         trackSun()
-        
+#         continuation = input(MENU_STRING)
+#         if continuation == 't':
+#             trackSun()
+#         elif continuation == 'h':
+#             home()
+#         elif continuation == 'goto':
+#             coords()
+#             ra = float(input('target RA (in deg): '))
+#             print(ra)
+#             goto(ra, False)
+#         elif continuation == 'm':
+#             raSteps = int(input('RA steps: '))
+#             decSteps = int(input('DEC steps: '))
+#             manual(raSteps, decSteps)
+#             print('Done!')
+#         elif continuation == 'coords':
+#             coords()
+#         else:
+#             confirmation = input('Are you sure about that? [y/n]\n>>> ')
+#             if confirmation == 'y':
+#                 break
+#             else:
+#                 continue
 # except KeyboardInterrupt:
 #     fWrite = open('lastPos.txt', 'w')
 #     fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
 #     fWrite.close()
+
+# ===== Main loop auto control =====
+try:
+    cleanup(motors)
+    home()
+    trackSun()
+        
+except KeyboardInterrupt:
+    fWrite = open('lastPos.txt', 'w')
+    fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
+    fWrite.close()
