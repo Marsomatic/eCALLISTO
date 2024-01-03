@@ -16,8 +16,9 @@ states = [
 
 # Stepper control initialization
 # pins of the 2 motors, 4 coils each
-motors = [[11, 15, 12, 13], 
-          [29, 33, 32, 31]]
+#motors[0] = motor A; motors[1] = motor B
+motors = [[15, 13, 12, 11],
+          [32, 33, 31, 29]]
 # IMPORTANT:
 # When PCB is printed the motor assignment is as follows:
 # motors = [[12, 15, 11, 13], 
