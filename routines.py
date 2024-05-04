@@ -9,8 +9,8 @@ import time
 # States a stepper motor can be in row --> state; column --> coil nr.
 states = [
     [1, 0, 0, 0],
-    [0, 0, 1, 0],
     [0, 1, 0, 0],
+    [0, 0, 1, 0],
     [0, 0, 0, 1]
 ]
 
@@ -19,6 +19,9 @@ states = [
 #motors[0] = motor A; motors[1] = motor B
 motors = [[15, 13, 12, 11],
           [32, 33, 31, 29]]
+
+g.setmode(g.BOARD)
+
 # IMPORTANT:
 # When PCB is printed the motor assignment is as follows:
 # motors = [[12, 15, 11, 13], 
@@ -82,9 +85,17 @@ def moveStepper(motor, steps, dir, absoluteStepperState):
         g.output(motors[motor][2], states[absoluteStepperState[motor]%4][1])
         g.output(motors[motor][1], states[absoluteStepperState[motor]%4][2])
         g.output(motors[motor][0], states[absoluteStepperState[motor]%4][3])
-        absoluteStepperState[motor] += dir
         time.sleep(SLEEP_TIME)
+        cleanup(motors)
+        absoluteStepperState[motor] += dir
     return absoluteStepperState
+    
+    '''
+    sends according signal to pins which control the arduino
+    '''
+    # g.output(arduinoEnable, 1)
+    # ser.write(bytes(f'{steps*dir}\n'))
+    # g.output(arduinoEnable, 0)
     
 def initMotors():
     '''

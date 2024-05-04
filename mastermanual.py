@@ -378,6 +378,7 @@ def waitForSchedule():
 
     while True:
         starttime = datetime.now(tz).replace(hour=START_TIME_HOUR, minute=START_TIME_MINUTE, second=0, microsecond=0)
+        ovstime = datetime.now(tz).replace(hour=OVS_TIMEH, minute=OVS_TIMEM, second=0, microsecond=0)
         obsEndTime = datetime.now().replace(hour=STOP_TIME_HOUR, minute=STOP_TIME_MINUTE, second=0, microsecond=0)
         timenow = datetime.now(tz)
         observer.date = timenow
@@ -385,58 +386,56 @@ def waitForSchedule():
         if timenow >= (starttime + timedelta(hours=-1)) and timenow.timestamp() <= (obsEndTime).timestamp():
             print(f'{timenow}: good morning world')
             break
-        for i in range(len(OVS_TIMEH)):
-            ovstime = datetime.now(tz).replace(hour=OVS_TIMEH[i], minute=OVS_TIMEM[i], second=0, microsecond=0)
-            if timenow > ovstime + timedelta(minutes=-15) and timenow < ovstime + timedelta(minutes=15):
-                gotoZenith()
-                time.sleep(1800)
-                print(f'{timenow}: going back home')
-                home()
+        if timenow > ovstime + timedelta(minutes=-15) and timenow < ovstime + timedelta(minutes=15):
+            gotoZenith()
+            time.sleep(1800)
+            print(f'{timenow}: going back home')
+            home()
         time.sleep(30)
     return
 # ===== Main loop manual control =====
-# if __name__ == '__main__':
-#     try:
-#         while True:
-#             cleanup(motors)
-#             continuation = input(MENU_STRING)
-#             if continuation == 't':
-#                 trackSun()
-#             elif continuation == 'h':
-#                 home()
-#             elif continuation == 'goto':
-#                 coords()
-#                 ra = float(input('target RA (in deg): '))
-#                 print(ra)
-#                 goto(ra, False)
-#             elif continuation == 'm':
-#                 raSteps = int(input('RA steps: '))
-#                 decSteps = int(input('DEC steps: '))
-#                 manual(raSteps, decSteps)
-#                 print('Done!')
-#             elif continuation == 'coords':
-#                 coords()
-#             elif continuation == 'clean':
-#                 cleanup(motors)
-#             else:
-#                 confirmation = input('Are you sure about that? [y/n]\n>>> ')
-#                 if confirmation == 'y':
-#                     break
-#                 else:
-#                     continue
-#     except KeyboardInterrupt:
-#         fWrite = open('lastPos.txt', 'w')
-#         fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
-#         fWrite.close()
-
-# ===== Main loop auto control =====
 if __name__ == '__main__':
     try:
-        cleanup(motors)
-        home()
-        trackSun()
-            
+        while True:
+            cleanup(motors)
+            continuation = input(MENU_STRING)
+            if continuation == 't':
+                trackSun()
+            elif continuation == 'h':
+                home()
+            elif continuation == 'goto':
+                coords()
+                ra = float(input('target RA (in deg): '))
+                print(ra)
+                goto(ra, False)
+            elif continuation == 'm':
+                raSteps = int(input('RA steps: '))
+                decSteps = int(input('DEC steps: '))
+                manual(raSteps, decSteps)
+                print('Done!')
+            elif continuation == 'coords':
+                coords()
+            elif continuation == 'clean':
+                cleanup(motors)
+            else:
+                confirmation = input('Are you sure about that? [y/n]\n>>> ')
+                if confirmation == 'y':
+                    break
+                else:
+                    continue
     except KeyboardInterrupt:
         fWrite = open('lastPos.txt', 'w')
         fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
         fWrite.close()
+
+# ===== Main loop auto control =====
+# if __name__ == '__main__':
+#     try:
+#         cleanup(motors)
+#         home()
+#         trackSun()
+            
+#     except KeyboardInterrupt:
+#         fWrite = open('lastPos.txt', 'w')
+#         fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
+#         fWrite.close()
