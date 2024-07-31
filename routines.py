@@ -1,125 +1,52 @@
-import astropy.units as u
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
-from astropy.time import Time
-from datetime import datetime
-import RPi.GPIO as g
-from constants import SLEEP_TIME
 import time
+from constants import *
+# https://github.com/Chr157i4n/TMC2209_Raspberry_Pi/tree/main
+try:
+    from src.TMC_2209.TMC_2209_StepperDriver import *
+    from src.TMC_2209._TMC_2209_GPIO_board import Board
+except ModuleNotFoundError:
+    from TMC_2209.TMC_2209_StepperDriver import *
+    from TMC_2209._TMC_2209_GPIO_board import Board
 
-# States a stepper motor can be in row --> state; column --> coil nr.
-states = [
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 1, 0],
-    [0, 0, 0, 1]
-]
+def setupTMC(tmc):
+    """ initializes the settings in the register of the TMC driver
 
-# Stepper control initialization
-# pins of the 2 motors, 4 coils each
-#motors[0] = motor A; motors[1] = motor B
-motors = [[15, 13, 12, 11],
-          [32, 33, 31, 29]]
+    Args:
+        tmc (TMC_2209): TMC object from the TMC_2209 stepper driver library
+    """
+    # set the loglevel of the libary (currently only printed)
+    # set whether the movement should be relative or absolute
+    # both optional
+    tmc.tmc_logger.set_loglevel(Loglevel.DEBUG)
+    tmc.set_movement_abs_rel(MovementAbsRel.ABSOLUTE)
 
-g.setmode(g.BOARD)
+    # these functions change settings in the TMC register
+    tmc.set_direction_reg(False)
+    tmc.set_current(MAX_CURRENT)
+    tmc.set_interpolation(True)
+    tmc.set_spreadcycle(False)
+    tmc.set_microstepping_resolution(MICROSTEPS)
+    tmc.set_internal_rsense(False)
+    tmc.set_motor_enabled(True)
 
-# IMPORTANT:
-# When PCB is printed the motor assignment is as follows:
-# motors = [[12, 15, 11, 13], 
-#           [31, 33, 32, 29]]
+    tmc.set_acceleration_fullstep(MAX_ACCEL)
+    tmc.set_max_speed_fullstep(MAX_SPEED)
 
-absoluteStepperState = [330000, 330000]
+def moveStepper(tmc, steps):
+    """ all the stepper movements are controlled here
 
-def convertToEquatorial(alt, az):
-    '''
-    converts alt az coordinates to equatorial
-    location: Visnjan
-    default alt az for home(?): 30, 180
-    returns equatorial coordinates in degrees
-    '''
-    # defining home pointing in alt az coordinates
-    homeAlt = Angle(alt, unit = u.deg)
-    homeAz = Angle(az, unit = u.deg)
-    home = AltAz(alt = homeAlt, az = homeAz)
-    
-    # defining location
-    loc = EarthLocation(lat = 45.275840*u.deg, lon = 13.721654*u.deg, height = 226*u.m)
+    Args:
+        tmc (TMC_2209): TMC driver object
+        steps (int): positive or negative value. steps, including microsteps, to move the stepper 
+    """
+    tmc.set_motor_enabled(True)
+    tmc.run_to_position_steps(steps, MovementAbsRel.RELATIVE)
+    cleanup(tmc)
 
-    # defining the time
-    now = datetime.now()
-    time = Time(now, scale='utc', location=loc)
+def cleanup(tmc):
+    """ pulls the enable pin high to disable the driver output. This is the only safe way to power off the motor. Sudden loss of power can damage the driver
 
-    # defining skycoords object with altaz coordinates and converting home pointing to equatorial
-    coords = SkyCoord(alt = home.alt, az = home.az, obstime = now, frame='altaz', location = loc)
-    coordseq = coords.transform_to('icrs')
-    ra = Angle(coordseq.ra, unit = u.deg)
-    #ha = ra.hour_angle(time.sidereal_time('apparent', loc))
-    #ha = kutevi.RA.hour_angle(time.sidereal_time('apparent', loc))
-    
-    return (coordseq.ra.deg, coordseq.dec.deg)
-
-def cleanup(motors):
-    '''
-    sets all outputs to the motors to 0 (LOW)
-    This is done for example to prevent motors from pulling unnecessarily high current when stationary. The used high transmission ratio is enough to hold the steppers in place in most cases.
-    '''
-    g.output(motors[0][3], 0)
-    g.output(motors[0][2], 0)
-    g.output(motors[0][1], 0)
-    g.output(motors[0][0], 0)
-    g.output(motors[1][3], 0)
-    g.output(motors[1][2], 0)
-    g.output(motors[1][1], 0)
-    g.output(motors[1][0], 0)
-
-def moveStepper(motor, steps, dir, absoluteStepperState):
-    '''
-    moves a stepper a given amount of steps in a given direction
-    motor: 0 = ra, 1 = dec
-    steps: int number of steps
-    dir: -1 = east/north, 1 = west/south
-    absoluteStepperState: 
-    '''
-    
-    for i in range(abs(steps)):
-        g.output(motors[motor][3], states[absoluteStepperState[motor]%4][0])
-        g.output(motors[motor][2], states[absoluteStepperState[motor]%4][1])
-        g.output(motors[motor][1], states[absoluteStepperState[motor]%4][2])
-        g.output(motors[motor][0], states[absoluteStepperState[motor]%4][3])
-        time.sleep(SLEEP_TIME)
-        cleanup(motors)
-        absoluteStepperState[motor] += dir
-    return absoluteStepperState
-    
-    '''
-    sends according signal to pins which control the arduino
-    '''
-    # g.output(arduinoEnable, 1)
-    # ser.write(bytes(f'{steps*dir}\n'))
-    # g.output(arduinoEnable, 0)
-    
-def initMotors():
-    '''
-    initializes all control pins from the motors list
-    '''
-    g.setup(motors[0][0], g.OUT)
-    g.setup(motors[0][1], g.OUT)
-    g.setup(motors[0][2], g.OUT)
-    g.setup(motors[0][3], g.OUT)
-    g.setup(motors[1][0], g.OUT)
-    g.setup(motors[1][1], g.OUT)
-    g.setup(motors[1][2], g.OUT)
-    g.setup(motors[1][3], g.OUT)
-    
-def optoCheck():
-    '''
-    prints opto-interrupter output
-    '''
-    g.setmode(g.BOARD)
-    g.setwarnings(False)
-    g.setup(38, g.IN)
-
-    try:
-        while True:
-            print(g.input(38))
-    except KeyboardInterrupt:
-        return    
+    Args:
+        tmc (TMC_2209): TMC driver object
+    """
+    tmc.set_motor_enabled(False)
