@@ -5,8 +5,17 @@ LAT = 45.276055
 LON = 13.721878
 ALTITUDE = 226
 
-# Steps in a rotation
-STEPS_PER_ROT = 660000
+# control pins
+enPin = 21
+dirPin = 20
+stepPin = 16
+limit = 17
+
+# microstepping
+MICROSTEPS = 2
+
+# FULL Steps in a rotation
+STEPS_PER_ROT = 10000
 
 # Transmission ratio stepsperrev/200
 TRANSMISSION_RATIO = STEPS_PER_ROT / 200
@@ -56,3 +65,12 @@ STOP_TIME_MINUTE = 30
 # Time when callisto does a spectral overview hour:0..23. Each column is 1 OVS time
 OVS_TIMEH = [3, 18]
 OVS_TIMEM = [30, 15]
+
+# max current in mA
+MAX_CURRENT = 1000
+
+# default max acceleration step/s2
+MAX_ACCEL = 1000
+
+# default max speed in steps/s (from experience, stepper skips steps above 1000)
+MAX_SPEED = 1000
