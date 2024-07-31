@@ -1,3 +1,11 @@
+"""
+Created on Jul 31 2024
+Updated on Jul 31 2024
+main control program for the callisto station Visnjan
+
+@author: M. Markovic
+"""
+
 import ephem
 import time
 import astropy.units as u
@@ -6,42 +14,34 @@ from astropy.time import Time
 from datetime import datetime, timedelta
 import RPi.GPIO as g
 from constants import *
-from routines import cleanup, initMotors, moveStepper
+from routines import *
 import pytz
+try:
+    from src.TMC_2209.TMC_2209_StepperDriver import *
+    from src.TMC_2209._TMC_2209_GPIO_board import Board
+except ModuleNotFoundError:
+    from TMC_2209.TMC_2209_StepperDriver import *
+    from TMC_2209._TMC_2209_GPIO_board import Board
 
 # local timezone
 tz = pytz.timezone('Europe/Berlin')
 
 # This is initialized as in the middle of the stepper range (1 revolution is 660 000 steps), needs to be updated when homed
-absoluteStepperState = [330000, 330000] # for RA and Dec
+absoluteStepperState = [STEPS_PER_ROT/2, STEPS_PER_ROT/2] # for RA and Dec
 # Format: time; RA; DEC
 pointing = [datetime.now(tz), 0, 0]
 
-# Stepper control initialization
-# pins of the 2 motors, 4 coils each
-motors = [[15, 13, 12, 11], 
-          [32, 33, 31, 29]]
+# Initializing the motor GPIO pins and the optical limit sensors 
+# all in GPIO notation, not physical
+# initiate and setup the TMC_2209 class
+enPin = 21
+dirPin = 20
+stepPin = 16
+limit = 17
 
-# pins of the photointerrupters used for homing. RA and Dec axis respectively
-limits = [38, 40]
-
-# Initializing the GPIO library, motor GPIO pins and the optical limit sensors 
-g.setmode(g.BOARD)
-g.setwarnings(False)
-initMotors()
-g.setup(limits[0], g.IN)
-g.setup(limits[1], g.IN)
-
-# Open file
-fRead = open('lastPos.txt', 'r')
-line = fRead.readline()
-filelist = line.split()
-
-# Pointing format: [Date and time, RA, Dec]
-if len(line) != 0:
-    pointing = [datetime.now(tz), float(filelist[0]), float(filelist[1])]
-    absoluteStepperState = [int(filelist[2]), 330000]
-fRead.close()
+tmc1 = TMC_2209(enPin, stepPin, dirPin)
+g.setup(limit, g.IN)
+setupTMC(tmc1)
 
 # PyEphem variables
 observer = ephem.Observer()
@@ -77,7 +77,7 @@ def trackSun():
     while sun.alt < 0:
         observer.date = datetime.now(tz)
         sun.compute(observer)
-        time.sleep(30)    
+        time.sleep(15)
     goto(sun.ra * RAD_TO_DEG_FACTOR, True)
     print('tracking')
     
@@ -130,7 +130,7 @@ def trackSun():
                     if (timenow - lastPrint).total_seconds() >= PRINT_FREQ:
                         printAllCoords(sunHourAngle, lha)
                         lastPrint = timenow
-            cleanup(motors)
+            cleanup(tmc1)
             if timenow.timestamp() > obsEndTime.timestamp():
                     home()
                     trackSun()
@@ -140,7 +140,7 @@ def trackSun():
             
     except KeyboardInterrupt:
         # goes back to main menu
-        cleanup(motors)
+        cleanup(tmc1)
         return
 
 def home():
@@ -157,8 +157,8 @@ def home():
         
         # drives RA axis towards home position
         print('homing RA...')
-        while g.input(38):    
-            absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+        while g.input(38):
+            absoluteStepperState = moveStepper(tmc1, 1)
             time.sleep(SLEEP_TIME)
         print('end stop reached')
         
@@ -172,11 +172,11 @@ def home():
         pointing[0] = timenow
         print('RA homed!')
         
-        cleanup(motors)
+        cleanup(tmc1)
         coords()
         
     except KeyboardInterrupt:
-        cleanup(motors)
+        cleanup(tmc1)
         return
         
 def goto(targetRa, tracking):
@@ -211,7 +211,7 @@ def goto(targetRa, tracking):
             # Moves ra stepper to go-to/track the target
             if targetRa < pointing[1] - DEG_PER_STEP and pointing[1] - targetRa < 180:
                 while targetRa < pointing[1]:
-                    absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                    absoluteStepperState = moveStepper(tmc1, -1)
                     pointing[0] = timenow
                     pointing[1] -= DEG_PER_STEP
                     if pointing[1] < 0:
@@ -226,7 +226,7 @@ def goto(targetRa, tracking):
 
             elif targetRa > pointing[1] + DEG_PER_STEP and targetRa - pointing[1] < 180:
                 while targetRa > pointing[1]:
-                    absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                    absoluteStepperState = moveStepper(tmc1, 1)
                     pointing[0] = timenow
                     pointing[1] += DEG_PER_STEP
                     if pointing[1] > 360:
@@ -241,7 +241,7 @@ def goto(targetRa, tracking):
             
             elif targetRa < pointing[1] - DEG_PER_STEP and pointing[1] - targetRa > 180:
                 while targetRa < pointing[1]:
-                    absoluteStepperState = moveStepper(0, 1, 1, absoluteStepperState)
+                    absoluteStepperState = moveStepper(tmc1, 1)
                     pointing[0] = timenow
                     pointing[1] += DEG_PER_STEP
                     if pointing[1] > 360:
@@ -256,7 +256,7 @@ def goto(targetRa, tracking):
                         
             elif targetRa > pointing[1] + DEG_PER_STEP and targetRa - pointing[1] > 180:
                 while targetRa > pointing[1]:
-                    absoluteStepperState = moveStepper(0, 1, -1, absoluteStepperState)
+                    absoluteStepperState = moveStepper(tmc1, -1)
                     pointing[0] = timenow
                     pointing[1] -= DEG_PER_STEP
                     if pointing[1] < 0:
@@ -269,10 +269,10 @@ def goto(targetRa, tracking):
                         printAllCoords(sunHourAngle, lha)
                         lastPrint = timenow
 
-            cleanup(motors)
+            cleanup(tmc1)
 
     except KeyboardInterrupt:
-        cleanup(motors)
+        cleanup(tmc1)
         return pointing[1]
 
 def gotoZenith():
@@ -283,14 +283,17 @@ def gotoZenith():
     now = datetime.utcnow()
     print(f'{now}going to zenith, this will take approx. 3min')
     zenithSteps = STEPS_PER_ROT / 4
-    absoluteStepperState = moveStepper(0, int(zenithSteps), -1, absoluteStepperState)
+    absoluteStepperState = moveStepper(tmc1, -int(zenithSteps))
     now = datetime.utcnow()
     print(f'arrived at zenith at {now}(UTC)')
     
 def manual(raSteps, decSteps):
-    '''
-    manually moves motors by a given amount of steps (direction is indicated with positive or negative values)
-    '''
+    """ manually moves the two axes by the specified amount of steps
+
+    Args:
+        raSteps (int): positive or negative hour axis steps
+        decSteps (int): postitive or negative declination axis steps
+    """
     try:
         global pointing
         global observer
@@ -302,34 +305,34 @@ def manual(raSteps, decSteps):
         if raSteps < 0:
             try:
                 print(f'brrrrrrrrrrrrrrrrrrrrr {absoluteStepperState}')
-                absoluteStepperState = moveStepper(0, raSteps, -1, absoluteStepperState)
+                moveStepper(tmc1, -raSteps)
             except KeyboardInterrupt:
-                cleanup(motors)
+                cleanup(tmc1)
                 return
         if raSteps > 0:
             try:
                 print('brrrrrrrrrrrrrrrrrrrrr')
-                absoluteStepperState = moveStepper(0, raSteps, 1, absoluteStepperState)
+                moveStepper(tmc1, raSteps)
             except KeyboardInterrupt:
-                cleanup(motors)
+                cleanup(tmc1)
                 return
 
         if decSteps < 0:
             try:
                 print('brrrrrrrrrrrrrrrrrrrrr')
-                absoluteStepperState = moveStepper(1, decSteps, -1, absoluteStepperState)
+                moveStepper(tmc1, -decSteps)
             except KeyboardInterrupt:
-                cleanup(motors)
+                cleanup(tmc1)
                 return
         if decSteps > 0:
             try:
                 print('brrrrrrrrrrrrrrrrrrrrr')
-                absoluteStepperState = moveStepper(1, decSteps, 1, absoluteStepperState)
+                moveStepper(tmc1, decSteps)
             except KeyboardInterrupt:
-                cleanup(motors)
+                cleanup(tmc1)
                 return
     except KeyboardInterrupt:
-        cleanup(motors)
+        cleanup(tmc1)
         return
     
 def coords():
@@ -378,6 +381,7 @@ def waitForSchedule():
 
     while True:
         starttime = datetime.now(tz).replace(hour=START_TIME_HOUR, minute=START_TIME_MINUTE, second=0, microsecond=0)
+        ovstime = datetime.now(tz).replace(hour=OVS_TIMEH, minute=OVS_TIMEM, second=0, microsecond=0)
         obsEndTime = datetime.now().replace(hour=STOP_TIME_HOUR, minute=STOP_TIME_MINUTE, second=0, microsecond=0)
         timenow = datetime.now(tz)
         observer.date = timenow
@@ -385,20 +389,18 @@ def waitForSchedule():
         if timenow >= (starttime + timedelta(hours=-1)) and timenow.timestamp() <= (obsEndTime).timestamp():
             print(f'{timenow}: good morning world')
             break
-        for i in range(len(OVS_TIMEH)):
-            ovstime = datetime.now(tz).replace(hour=OVS_TIMEH[i], minute=OVS_TIMEM[i], second=0, microsecond=0)
-            if timenow > ovstime + timedelta(minutes=-15) and timenow < ovstime + timedelta(minutes=15):
-                gotoZenith()
-                time.sleep(1800)
-                print(f'{timenow}: going back home')
-                home()
+        if timenow > ovstime + timedelta(minutes=-15) and timenow < ovstime + timedelta(minutes=15):
+            gotoZenith()
+            time.sleep(1800)
+            print(f'{timenow}: going back home')
+            home()
         time.sleep(30)
     return
 # ===== Main loop manual control =====
 # if __name__ == '__main__':
 #     try:
 #         while True:
-#             cleanup(motors)
+#             cleanup(tmc1)
 #             continuation = input(MENU_STRING)
 #             if continuation == 't':
 #                 trackSun()
@@ -412,12 +414,13 @@ def waitForSchedule():
 #             elif continuation == 'm':
 #                 raSteps = int(input('RA steps: '))
 #                 decSteps = int(input('DEC steps: '))
-#                 manual(raSteps, decSteps)
+#                 moveStepper(tmc1, raSteps)
+#                 # manual(raSteps, decSteps)
 #                 print('Done!')
 #             elif continuation == 'coords':
 #                 coords()
 #             elif continuation == 'clean':
-#                 cleanup(motors)
+#                 cleanup(tmc1)
 #             else:
 #                 confirmation = input('Are you sure about that? [y/n]\n>>> ')
 #                 if confirmation == 'y':
@@ -428,6 +431,8 @@ def waitForSchedule():
 #         fWrite = open('lastPos.txt', 'w')
 #         fWrite.write(f'{pointing[1]} {pointing[2]} {absoluteStepperState[0]}')
 #         fWrite.close()
+#         tmc1.set_motor_enabled(False)
+#         del tmc1
 
 # ===== Main loop auto control =====
 if __name__ == '__main__':
